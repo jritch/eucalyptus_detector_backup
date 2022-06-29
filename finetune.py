@@ -9,6 +9,7 @@ import torch.optim as optim
 import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
+from datetime import date
 import matplotlib.pyplot as plt
 import time
 import os
@@ -22,6 +23,9 @@ data_dir = "./img"
 
 # Models to choose from [resnet, alexnet, vgg, squeezenet, densenet, inception]
 model_name = "mobilenet_v3_large"
+
+#Path to save the model
+model_save_path = "./"+date.today()+"/mobilenet_v3_large_finetuned_.pt"
 
 # Number of classes in the dataset
 num_classes = 3
@@ -115,7 +119,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
     # load best model weights
     model.load_state_dict(best_model_wts)
 
-    torch.save(best_model_wts, "mobilenet_v3_large_finetuned.pt")
+    torch.save(best_model_wts, model_save_path)
 
     return model, val_acc_history
 
@@ -123,6 +127,56 @@ def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
         for param in model.parameters():
             param.requires_grad = False
+
+#only run evaluation - obtains the confusion matrix
+#confusion matrix rows = ground truth labels (background, eucalyptus, tree), columns = predicted labels in same order
+def eval_model(phase, dataloaders):
+    y_pred = []
+    y_true = []
+
+    model_ft = models.mobilenet_v3_large()
+    last_channel = 1280
+    num_classes = 3
+    model_ft.classifier[3] = nn.Linear(last_channel,num_classes)
+    model_ft.load_state_dict(torch.load(model_save_path))
+    model_ft.eval()
+
+    # iterate over test data
+    for inputs, labels in dataloaders[phase]:
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+
+        output = model_ft(inputs)
+        #print('output', output)
+        _, preds = torch.max(output, 1)
+        #print('preds', preds)
+        y_pred.extend(preds) # Save Prediction
+        
+        labels = labels.data.numpy()
+        y_true.extend(labels) # Save Truth
+
+    # Build confusion matrix
+    cf_matrix = confusion_matrix(y_true, y_pred)
+    print(cf_matrix)
+    
+#Note: this function does not fully function yet
+def tensorToImage(input_tensor):
+    print('input shape', input_tensor.shape)
+    img = np.array(input_tensor, dtype=np.uint8)
+    img = np.transpose(img, axes=[2, 1, 0])
+    img = np.squeeze(img) #squeeze is not working
+    print('new shape', img.shape)
+    plt.imshow(img)
+    plt.savefig('img.jpeg')
+    '''
+    input_img = input_tensor
+    #input_img = inputs[0]*255
+    input_img = np.array(input_img, dtype=np.uint8)
+    print('input img', input_img)
+    input_img = np.reshape(input_img, (224, 224, 3))
+    input_img = Image.fromarray(input_img, 'RGB')
+    input_img.save('img.jpeg')
+    '''
 
 def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
     # Initialize these variables which will be set in this if statement. Each of these
@@ -190,22 +244,13 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         input_size = 299
 
     elif model_name == "mobilenet_v3_large":
-        """ mobilenet_v3_large
-        what's tricky here is that the final layer, which we want to replace and retrain
-        is inside a nn.Sequential layer (which I think is used to group together a bunch of layers under a common hierarchy with a single name)
-        so we have to figure out how to 
-        """
         model_ft = models.mobilenet_v3_large(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[0].in_features
         last_channel = 1280
         lastconv_output_channels = 960
-        model_ft.classifier = nn.Sequential(
-            nn.Linear(lastconv_output_channels, last_channel),
-            nn.Hardswish(inplace=True),
-            nn.Dropout(p=0.2, inplace=True),
-            nn.Linear(last_channel, num_classes),
-        )
+        #only replace the final layer
+        model_ft.classifier[3] = nn.Linear(last_channel,num_classes)
         input_size = 224
 
     elif model_name == "mobilenet_v2":
@@ -291,3 +336,7 @@ criterion = nn.CrossEntropyLoss()
 
 # Train and evaluate
 model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs, is_inception=(model_name=="inception"))
+
+# Get the confusion matrix on the validation set and the training set
+eval_model('val', dataloaders_dict)
+eval_model('train', dataloaders_dict)
