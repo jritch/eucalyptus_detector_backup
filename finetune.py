@@ -9,23 +9,29 @@ import torch.optim as optim
 import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
-from datetime import date
+from datetime import date, datetime
 import matplotlib.pyplot as plt
 import time
 import os
 import copy
+import sklearn.metrics
+from sklearn.metrics import confusion_matrix, classification_report
+import pandas as pd
+import seaborn as sn
+from PIL import Image
 print("PyTorch Version: ",torch.__version__)
 print("Torchvision Version: ",torchvision.__version__)
 
 # Top level data directory. Here we assume the format of the directory conforms
 #   to the ImageFolder structure
-data_dir = "./img"
+data_dir = "./img3"
 
 # Models to choose from [resnet, alexnet, vgg, squeezenet, densenet, inception]
 model_name = "mobilenet_v3_large"
 
 #Path to save the model
-model_save_path = "./"+date.today()+"/mobilenet_v3_large_finetuned_.pt"
+model_save_path = "./models/"+datetime.now.strftime("%Y%m%d-%H%M")+"/mobilenet_v3_large_finetuned_.pt"
+#model_save_path = "mobilenet_v3_large_finetuned_v3.pt"
 
 # Number of classes in the dataset
 num_classes = 3
@@ -158,6 +164,7 @@ def eval_model(phase, dataloaders):
     # Build confusion matrix
     cf_matrix = confusion_matrix(y_true, y_pred)
     print(cf_matrix)
+    print(classification_report(y_true, y_pred))
     
 #Note: this function does not fully function yet
 def tensorToImage(input_tensor):
