@@ -90,7 +90,8 @@ def getHeatmap(image, moduleList, num):
         plt.axis('off')
         a.set_title(names[i].partition('(')[0], fontsize=30)
 
-    plt.savefig('./layer_outputs'+str(num)+'.jpg', bbox_inches='tight')
+    #UNCOMMENT THIS LINE TO SEE FIGURE
+    #plt.savefig('./layer_outputs'+str(num)+'.jpg', bbox_inches='tight')
 
 def inference():
     model = torchvision.models.mobilenet_v3_large(pretrained=True)
