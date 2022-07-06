@@ -35,7 +35,7 @@ model.classifier = nn.Sequential(
     nn.Linear(last_channel, 3),
 )
 
-model.load_state_dict(torch.load("mobilenet_v3_large_finetuned.pt"))
+model.load_state_dict(torch.load("mobilenet_v3_large_finetuned_v3.pt"))
 model.eval()
 
 data = StubDataset(dir="/Users/ritchie/Downloads/Smart Primer User Testing Location Photos")
