@@ -30,8 +30,8 @@ data_dir = "./img3"
 model_name = "mobilenet_v3_large"
 
 #Path to save the model
-model_save_path = "./models/"+datetime.now.strftime("%Y%m%d-%H%M")+"/mobilenet_v3_large_finetuned_.pt"
-#model_save_path = "mobilenet_v3_large_finetuned_v3.pt"
+model_save_path = "./models/"+datetime.now.strftime("%Y%m%d-%H%M")+"/mobilenet_v3_large_finetuned.pt"
+#model_save_path = "./models/2022-06-28/mobilenet_v3_large_finetuned.pt"
 
 # Number of classes in the dataset
 num_classes = 3
@@ -136,7 +136,7 @@ def set_parameter_requires_grad(model, feature_extracting):
 
 #only run evaluation - obtains the confusion matrix
 #confusion matrix rows = ground truth labels (background, eucalyptus, tree), columns = predicted labels in same order
-def eval_model(phase, dataloaders):
+def eval_model(phase, dataloaders, debug_mode):
     y_pred = []
     y_true = []
 
@@ -150,6 +150,7 @@ def eval_model(phase, dataloaders):
     # iterate over test data
     for inputs, labels in dataloaders[phase]:
         inputs = inputs.to(device)
+        tensorToImage(inputs[0])
         labels = labels.to(device)
 
         output = model_ft(inputs)
@@ -166,24 +167,15 @@ def eval_model(phase, dataloaders):
     print(cf_matrix)
     print(classification_report(y_true, y_pred))
     
-#Note: this function does not fully function yet
 def tensorToImage(input_tensor):
-    print('input shape', input_tensor.shape)
-    img = np.array(input_tensor, dtype=np.uint8)
+    img = np.array(input_tensor)
+    img[0] = img[0] * 0.229 + 0.485
+    img[1] = img[1] * 0.224 + 0.456
+    img[2] = img[2] * 0.225 + 0.406
     img = np.transpose(img, axes=[2, 1, 0])
-    img = np.squeeze(img) #squeeze is not working
-    print('new shape', img.shape)
+    print("IMG", img)
     plt.imshow(img)
     plt.savefig('img.jpeg')
-    '''
-    input_img = input_tensor
-    #input_img = inputs[0]*255
-    input_img = np.array(input_img, dtype=np.uint8)
-    print('input img', input_img)
-    input_img = np.reshape(input_img, (224, 224, 3))
-    input_img = Image.fromarray(input_img, 'RGB')
-    input_img.save('img.jpeg')
-    '''
 
 def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
     # Initialize these variables which will be set in this if statement. Each of these
@@ -289,6 +281,7 @@ print(model_ft)
 
 # Data augmentation and normalization for training
 # Just normalization for validation
+# Can do an experiment where we just resize, instead of doing random resized crop, on the training set
 data_transforms = {
     'train': transforms.Compose([
         transforms.RandomResizedCrop(input_size),
@@ -310,7 +303,7 @@ print("Initializing Datasets and Dataloaders...")
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
 # Create training and validation dataloaders
 dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=0) for x in ['train', 'val']}
-
+print("Dataloaders dict", dataloaders_dict['val'][0])
 # Detect if we have a GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -345,5 +338,5 @@ criterion = nn.CrossEntropyLoss()
 model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs, is_inception=(model_name=="inception"))
 
 # Get the confusion matrix on the validation set and the training set
-eval_model('val', dataloaders_dict)
-eval_model('train', dataloaders_dict)
+eval_model('val', dataloaders_dict, True)
+eval_model('train', dataloaders_dict, True)
